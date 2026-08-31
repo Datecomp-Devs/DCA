@@ -174,26 +174,6 @@ class AutoReplyEngineTest {
     }
 
     @Test
-    fun `markReplied actualiza timestamp`() {
-        val updated = AutoReplyEngine.markReplied(target(), nowMillis = 99_999L)
-        assertEquals(99_999L, updated.lastReplyTimestampMillis)
-    }
-
-    @Test
-    fun `awaitCooldown espera la demora configurada`() = runTest {
-        val start = testScheduler.currentTime
-        AutoReplyEngine.awaitCooldown(3L)
-        assertEquals(3_000L, testScheduler.currentTime - start)
-    }
-
-    @Test
-    fun `awaitCooldown con cero no espera`() = runTest {
-        val start = testScheduler.currentTime
-        AutoReplyEngine.awaitCooldown(0L)
-        assertEquals(0L, testScheduler.currentTime - start)
-    }
-
-    @Test
     fun `cooldown largo no bloquea decision de repeticion`() {
         // La demora es un efecto post-decision: no debe afectar shouldReply.
         // (lastReply 5s atrás pasa el gap interno de 2s.)

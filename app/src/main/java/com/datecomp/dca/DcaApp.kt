@@ -3,20 +3,8 @@ package com.datecomp.dca
 import android.app.Application
 
 /**
- * Punto de entrada de la aplicación DCA.
- *
- * Mantenido minimalista a propósito: el estado vive en el repositorio
- * (objetDataStore) y el servicio de notificación se reconecta por el
- * sistema cuando el usurio concede el permiso.
+ * Punto de entrada de la aplicación DCA. Definido para inicialización
+ * futura de librerías que lo requieran; el estado vivo en DataStore y el
+ * listener son gestionados por el sistema.
  */
-class DcaApp : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        instance = this
-    }
-
-    companion object {
-        lateinit var instance: DcaApp
-            private set
-    }
-}
+class DcaApp : Application()

@@ -138,43 +138,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun addTarget(packageName: String, displayName: String) {
         viewModelScope.launch {
             val existing = _appsState.value.targets.firstOrNull { it.packageName == packageName }
-            val updated = (existing ?: AppTarget(packageName, displayName)).copy(enabled = true)
-            repository.upsert(updated)
+            if (existing == null) {
+                repository.upsert(AppTarget(packageName = packageName, displayName = displayName, enabled = true))
+            } else {
+                repository.setEnabled(packageName, true)
+            }
         }
     }
 
     /** Habilita / deshabilita sin borrar la configuración. */
     fun toggleTarget(packageName: String, enabled: Boolean) {
-        viewModelScope.launch {
-            val target = _appsState.value.targets.firstOrNull { it.packageName == packageName } ?: return@launch
-            repository.upsert(target.copy(enabled = enabled))
-        }
+        viewModelScope.launch { repository.setEnabled(packageName, enabled) }
     }
 
     /** Cambia el mensaje de auto-respuesta de una app. */
     fun updateReplyMessage(packageName: String, message: String) {
-        viewModelScope.launch {
-            val target = _appsState.value.targets.firstOrNull { it.packageName == packageName } ?: return@launch
-            repository.upsert(target.copy(replyMessage = message.take(AppTarget.MAX_REPLY_LENGTH)))
-        }
+        viewModelScope.launch { repository.setReplyMessage(packageName, message) }
     }
 
     /** Configura el cooldown (demora) en segundos (0..3600). */
     fun updateCooldown(packageName: String, seconds: Long) {
-        viewModelScope.launch {
-            val target = _appsState.value.targets.firstOrNull { it.packageName == packageName } ?: return@launch
-            val clamped = seconds.coerceIn(AppTarget.MIN_COOLDOWN_SECONDS, AppTarget.MAX_COOLDOWN_SECONDS)
-            repository.upsert(target.copy(cooldownSeconds = clamped))
-        }
+        viewModelScope.launch { repository.setCooldown(packageName, seconds) }
     }
 
     /** Configura el intervalo de repetición en segundos (0..604800). */
     fun updateRepeat(packageName: String, seconds: Long) {
-        viewModelScope.launch {
-            val target = _appsState.value.targets.firstOrNull { it.packageName == packageName } ?: return@launch
-            val clamped = seconds.coerceIn(AppTarget.MIN_REPEAT_SECONDS, AppTarget.MAX_REPEAT_SECONDS)
-            repository.upsert(target.copy(repeatSeconds = clamped))
-        }
+        viewModelScope.launch { repository.setRepeat(packageName, seconds) }
     }
 
     /** Elimina la app de la lista DCA. */

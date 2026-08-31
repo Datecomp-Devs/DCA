@@ -24,7 +24,6 @@ object AutoReplyEngine {
      */
     data class IncomingNotification(
         val packageName: String,
-        val isGroupConversation: Boolean = false,
     )
 
     enum class Decision {
@@ -88,11 +87,4 @@ object AutoReplyEngine {
      * del sistema. No es configurable a propósito.
      */
     const val MIN_REPLY_GAP_MILLIS: Long = 2_000L
-
-    /**
-     * Devuelve una copia del target con la marca de respuesta actualizada.
-     * El repositorio debe persistir el resultado de esta función.
-     */
-    fun markReplied(target: AppTarget, nowMillis: Long): AppTarget =
-        target.copy(lastReplyTimestampMillis = nowMillis)
 }

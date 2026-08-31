@@ -128,7 +128,10 @@ class AutoReplyNotificationListener : NotificationListenerService() {
                     )
                     if (sent) {
                         lastSeenKeys[pkg] = key
-                        repository.markReplied(AutoReplyEngine.markReplied(current, System.currentTimeMillis()))
+                        // Escritura a nivel de campo sobre lo más reciente en
+                        // disco: no pisa ediciones del usuario hechas durante
+                        // la demora del cooldown.
+                        repository.markReplied(pkg, System.currentTimeMillis())
                         postConfirmationNotification(pkg, title, current.replyMessage)
                     }
                 }

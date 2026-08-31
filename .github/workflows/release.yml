@@ -1,0 +1,62 @@
+name: Publicar APK en Releases
+
+# No compila en CI. Toma el APK pre-compilado más reciente de la carpeta
+# /apk y lo publica en la pestaña Releases con el tag v{versionName}.
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Leer versión del proyecto
+        id: version
+        run: |
+          NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+          echo "Versión detectada: $NAME"
+
+      - name: Localizar APK y validar versión
+        id: apk
+        run: |
+          NAME="${{ steps.version.outputs.name }}"
+          FILE="apk/DCA-v$NAME.apk"
+          if [ ! -f "$FILE" ]; then
+            echo "::error::Falta apk/DCA-v$NAME.apk. Compila localmente, coloca el APK en /apk con nombre DCA-v{versionName}.apk y reemplaza el anterior."
+            exit 1
+          fi
+          echo "file=$FILE" >> $GITHUB_OUTPUT
+          echo "APK validado: $FILE"
+
+      - name: Reemplazar release anterior de la misma versión
+        run: |
+          TAG="v${{ steps.version.outputs.name }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --cleanup-tag --yes
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Publicar release
+        run: |
+          TAG="v${{ steps.version.outputs.name }}"
+          APK="${{ steps.apk.outputs.file }}"
+          gh release create "$TAG" \
+            --title "DCA $TAG" \
+            --notes "APK estable compilado del commit ${{ github.sha }}." \
+            "$APK#DCA-$TAG.apk"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Limpiar APKs antiguos del repo (deja solo el vigente)
+        run: |
+          find apk -maxdepth 1 -name "*.apk" \
+            ! -name "DCA-v${{ steps.version.outputs.name }}.apk" -delete || true
