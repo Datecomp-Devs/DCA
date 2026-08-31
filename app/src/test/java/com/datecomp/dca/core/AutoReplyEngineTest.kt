@@ -32,6 +32,9 @@ class AutoReplyEngineTest {
 
     private val notification = AutoReplyEngine.IncomingNotification(packageName = "com.test.app")
 
+    private val pepe = AutoReplyEngine.IncomingNotification(packageName = "com.test.app", sender = "Pepe")
+    private val lele = AutoReplyEngine.IncomingNotification(packageName = "com.test.app", sender = "Lele")
+
     @Test
     fun `responde cuando app habilitada y sin historial`() {
         val decision = AutoReplyEngine.shouldReply(
@@ -69,13 +72,16 @@ class AutoReplyEngineTest {
     }
 
     @Test
-    fun `salta cuando repeticion aun no vence`() {
-        val lastReply = 10_000L
-        val now = lastReply + 5_000L // 5s después con repetición de 15s
+    fun `salta cuando repeticion del remitente aun no vence`() {
+        // Ventana individual: el remitente fue respondido hace 5s con
+        // Repetir=15s → bloqueado para ESE remitente.
+        val target = target(repeatSeconds = 15L).let {
+            AutoReplyEngine.markReplied(it, "Test App", nowMillis = 10_000L)
+        }
         val decision = AutoReplyEngine.shouldReply(
-            target = target(lastReply = lastReply),
-            notification = notification,
-            nowMillis = now,
+            target = target,
+            notification = AutoReplyEngine.IncomingNotification("com.test.app", sender = "Test App"),
+            nowMillis = 15_000L, // 5s después con repetición de 15s
             lastSeenNotificationKey = null,
             notificationKey = "k2",
         )
@@ -125,15 +131,81 @@ class AutoReplyEngineTest {
 
     @Test
     fun `gap interno no supera el repetir del usuario`() {
-        // Repetir 1h > gap 2s: manda el intervalo del usuario.
+        // Repetir 1h > gap 2s: manda el intervalo del usuario POR REMITENTE.
+        // Pepe fue respondido hace 5s: solo Pepe esta bloqueado.
+        val target = target(repeatSeconds = 3_600L).let {
+            AutoReplyEngine.markReplied(it, "Pepe", nowMillis = 10_000L)
+        }
         val decision = AutoReplyEngine.shouldReply(
-            target = target(repeatSeconds = 3_600L, lastReply = 10_000L),
-            notification = notification,
+            target = target,
+            notification = pepe,
             nowMillis = 15_000L, // 5s después: fuera del gap, dentro de 1h
             lastSeenNotificationKey = null,
             notificationKey = "k2",
         )
         assertEquals(AutoReplyEngine.Decision.SKIP_REPEAT_NOT_DUE, decision)
+    }
+
+    @Test
+    fun `repetir es individual por remitente pepe vs lele`() {
+        // Escenario del usuario: Repetir 1 día. Pepe respondido en T0;
+        // Lele escribe 5 minutos despues y DEBE recibir respuesta.
+        val base = target(repeatSeconds = 86_400L)
+        val afterPepe = AutoReplyEngine.markReplied(base, "Pepe", nowMillis = 10_000L)
+
+        // Pepe a los 5 min: bloqueado (su ventana de 1 dia no vencio).
+        val pepeBlocked = AutoReplyEngine.shouldReply(
+            target = afterPepe,
+            notification = pepe,
+            nowMillis = 10_000L + 300_000L,
+            lastSeenNotificationKey = null,
+            notificationKey = "k-pepe2",
+        )
+        assertEquals(AutoReplyEngine.Decision.SKIP_REPEAT_NOT_DUE, pepeBlocked)
+
+        // Lele a los 5 min: su ventana es propia y esta vacia → REPLY.
+        val leleOk = AutoReplyEngine.shouldReply(
+            target = afterPepe,
+            notification = lele,
+            nowMillis = 10_000L + 300_000L,
+            lastSeenNotificationKey = null,
+            notificationKey = "k-lele1",
+        )
+        assertEquals(AutoReplyEngine.Decision.REPLY, leleOk)
+    }
+
+    @Test
+    fun `remitente con numero de telefono tambien tiene ventana propia`() {
+        val base = target(repeatSeconds = 3_600L)
+        val afterNumber = AutoReplyEngine.markReplied(base, "+573001234567", nowMillis = 1_000L)
+        // Mismo numero dentro de la ventana: bloqueado.
+        val same = AutoReplyEngine.shouldReply(
+            target = afterNumber,
+            notification = AutoReplyEngine.IncomingNotification("com.test.app", "+573001234567"),
+            nowMillis = 60_000L,
+            lastSeenNotificationKey = null,
+            notificationKey = "kn1",
+        )
+        assertEquals(AutoReplyEngine.Decision.SKIP_REPEAT_NOT_DUE, same)
+        // Numero distinto a la vez: responde.
+        val other = AutoReplyEngine.shouldReply(
+            target = afterNumber,
+            notification = AutoReplyEngine.IncomingNotification("com.test.app", "+573009876543"),
+            nowMillis = 60_000L,
+            lastSeenNotificationKey = null,
+            notificationKey = "kn2",
+        )
+        assertEquals(AutoReplyEngine.Decision.REPLY, other)
+    }
+
+    @Test
+    fun `markReplied poda el historial de remitentes viejos`() {
+        val base = target(repeatSeconds = 0L)
+        // 250 remitentes antiguos (fuera del TTL de 7 dias).
+        val old = (1..250).associate { "old$it" to (it * 1000L) }
+        val loaded = base.copy(lastReplyBySender = old)
+        val after = AutoReplyEngine.markReplied(loaded, "nuevo", nowMillis = 30L * 86_400_000L)
+        assertEquals(1, after.lastReplyBySender.size)
     }
 
     @Test

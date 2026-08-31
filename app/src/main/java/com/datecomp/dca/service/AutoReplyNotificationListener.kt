@@ -111,7 +111,7 @@ class AutoReplyNotificationListener : NotificationListenerService() {
 
                 val decision = AutoReplyEngine.shouldReply(
                     target = current,
-                    notification = AutoReplyEngine.IncomingNotification(packageName = pkg),
+                    notification = AutoReplyEngine.IncomingNotification(packageName = pkg, sender = title),
                     nowMillis = System.currentTimeMillis(),
                     lastSeenNotificationKey = lastSeenKeys[pkg],
                     notificationKey = key,
@@ -128,10 +128,11 @@ class AutoReplyNotificationListener : NotificationListenerService() {
                     )
                     if (sent) {
                         lastSeenKeys[pkg] = key
-                        // Escritura a nivel de campo sobre lo más reciente en
-                        // disco: no pisa ediciones del usuario hechas durante
-                        // la demora del cooldown.
-                        repository.markReplied(pkg, System.currentTimeMillis())
+                        // Escritura atomica a nivel de campo: actualiza el gap
+                        // tecnico de la app y la ventana individual del
+                        // remitente (titulo de conversacion = contacto/numero),
+                        // sin pisar ediciones del usuario en curso.
+                        repository.markReplied(pkg, title, System.currentTimeMillis())
                         postConfirmationNotification(pkg, title, current.replyMessage)
                     }
                 }

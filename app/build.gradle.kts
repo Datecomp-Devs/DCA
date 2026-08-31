@@ -26,8 +26,8 @@ android {
         applicationId = "com.datecomp.dca"
         minSdk = 23
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
 
         // Fallback a un nombre de APK determinista y estable.
         setProperty("archivesBaseName", "DCA-v$versionName")

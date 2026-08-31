@@ -10,7 +10,8 @@ import kotlinx.coroutines.delay
  * - [AppTarget.cooldownSeconds]: espera desde que llega la notificación
  *   hasta enviar la respuesta (0 = inmediata).
  * - [AppTarget.repeatSeconds]: intervalo mínimo entre respuestas automáticas
- *   a la misma app (0 = responder cada notificación).
+ *   AL MISMO REMITENTE (0 = responder siempre). Individual: la ventana de un
+ *   contacto no afecta a los demás.
  */
 object AutoReplyEngine {
 
@@ -21,9 +22,14 @@ object AutoReplyEngine {
 
     /**
      * Representa la notificación entrante tal como la entrega el sistema.
+     *
+     * @property packageName app de mensajería origen.
+     * @property sender remitente/título de conversación (contacto o número).
+     *   Base de la ventana "Repetir" individual.
      */
     data class IncomingNotification(
         val packageName: String,
+        val sender: String = "",
     )
 
     enum class Decision {
@@ -40,7 +46,11 @@ object AutoReplyEngine {
      * Reglas (en orden):
      * 1. La app debe estar habilitada.
      * 2. El target debe pasar la validación de contrato.
-     * 3. Debe haber transcurrido el intervalo mínimo de repetición.
+     * 3a. GAP técnico por app: absorbe el doble despacho del sistema
+     *     (re-posts casi simultáneos de la misma notificación).
+     * 3b. Ventana "Repetir" INDIVIDUAL por remitente: si a Pepe se le
+     *     respondió hace menos de [AppTarget.repeatSeconds], solo Pepe
+     *     queda en espera; Lele tiene su propia ventana.
      * 4. La notificación no debe ser un duplicado re-posteado.
      *
      * El cooldown (demora) NO decide aquí: se aplica como espera
@@ -59,18 +69,25 @@ object AutoReplyEngine {
         // 2. Contrato inválido: no responder con datos corruptos.
         if (!target.isValid()) return Decision.SKIP_TARGET_INVALID
 
-        // 3. Intervalo mínimo entre respuestas a esta app. Es el mayor entre
-        //    el "Repetir" elegido por el usuario y un GAP interno no
-        //    configurable que absorbe re-posts casi simultáneos del mismo
-        //    mensaje (las apps re-publican la notificación con variaciones
-        //    mínimas de texto en milisegundos). Se usa lastReplyTimestampMillis
-        //    (persistido) para que la protección sobreviva reinicios y
-        //    reconexiones del listener. 0 = nunca respondido.
-        val repeatMillis = target.repeatSeconds * 1000L
-        val minGapMillis = maxOf(repeatMillis, MIN_REPLY_GAP_MILLIS)
+        // 3a. GAP técnico por app (persistido, no configurable): frena
+        //     re-posts del sistema a <2s de la última respuesta, sea quien
+        //     sea el remitente. No es la ventana del usuario.
         val hasRepliedBefore = target.lastReplyTimestampMillis > 0L
-        if (hasRepliedBefore && nowMillis - target.lastReplyTimestampMillis < minGapMillis) {
+        if (hasRepliedBefore &&
+            nowMillis - target.lastReplyTimestampMillis < MIN_REPLY_GAP_MILLIS
+        ) {
             return Decision.SKIP_REPEAT_NOT_DUE
+        }
+
+        // 3b. "Repetir" individual POR REMITENTE (contacto o número).
+        //     Remitentes distintos tienen ventanas independientes.
+        val repeatMillis = target.repeatSeconds * 1000L
+        val sender = notification.sender.trim()
+        if (repeatMillis > 0L && sender.isNotBlank()) {
+            val senderLast = target.lastReplyBySender[sender] ?: 0L
+            if (senderLast > 0L && nowMillis - senderLast < repeatMillis) {
+                return Decision.SKIP_REPEAT_NOT_DUE
+            }
         }
 
         // 4. Duplicado: la misma firma de contenido ya fue respondida.
@@ -82,9 +99,39 @@ object AutoReplyEngine {
     }
 
     /**
+     * Registra una respuesta: actualiza el gap técnico de la app y la
+     * ventana individual del remitente. Poda el historial de remitentes
+     * antiguos para que el JSON persistido no crezca sin límite.
+     *
+     * El repositorio debe aplicar esta transformación ATÓMICAMENTE sobre el
+     * valor más reciente en disco (ver SettingsRepository.editTarget).
+     */
+    fun markReplied(target: AppTarget, sender: String, nowMillis: Long): AppTarget {
+        val cleanSender = sender.trim()
+        val pruned = target.lastReplyBySender
+            .filter { (_, t) -> nowMillis - t < SENDER_HISTORY_TTL_MILLIS }
+            .let { if (cleanSender.isBlank()) it else it + (cleanSender to nowMillis) }
+            .entries
+            .sortedByDescending { it.value }
+            .take(MAX_SENDER_ENTRIES)
+            .associate { it.key to it.value }
+        return target.copy(
+            lastReplyTimestampMillis = nowMillis,
+            lastReplyBySender = pruned,
+        )
+    }
+
+    /**
      * GAP interno anti-duplicados: ventana mínima entre dos respuestas a la
      * misma app aunque "Repetir" sea 0 (Siempre). Absorbe el doble despacho
-     * del sistema. No es configurable a propósito.
+     * del sistema. No es configurable a propósito. NO es la ventana
+     * "Repetir" del usuario: esa es individual por remitente.
      */
     const val MIN_REPLY_GAP_MILLIS: Long = 2_000L
+
+    /** TTL del historial por remitente: 7 días. */
+    const val SENDER_HISTORY_TTL_MILLIS: Long = 7L * 86_400_000L
+
+    /** Tope de remitentes recordados por app. */
+    const val MAX_SENDER_ENTRIES: Int = 200
 }

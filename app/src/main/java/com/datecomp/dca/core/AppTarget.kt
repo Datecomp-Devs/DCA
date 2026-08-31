@@ -11,11 +11,15 @@ import kotlinx.serialization.Serializable
  * @property cooldownSeconds Segundos de espera desde que llega la
  *   notificación antes de enviar la respuesta automática (0 = inmediata).
  * @property repeatSeconds Tiempo mínimo en segundos entre respuestas
- *   automáticas a esta app (0 = responder siempre). Ej.: 1800 = cada 30 min,
- *   86400 = una vez al día.
+ *   automáticas AL MISMO REMITENTE de esta app (0 = responder siempre).
+ *   Ej.: 86400 = un remitente recibe una respuesta por día; otro remitente
+ *   de la misma app tiene su propia ventana independiente.
  * @property replyMessage Mensaje de auto-respuesta personalizado.
- * @property lastReplyTimestampMillis Última vez (epoch millis) que se envió
- *   una respuesta a esta app, usado para respetar el intervalo de repetición.
+ * @property lastReplyTimestampMillis Última respuesta a ESTA APP (cualquier
+ *   remitente). Uso exclusivo del gap técnico anti-doble-envío.
+ * @property lastReplyBySender Última respuesta POR REMITENTE
+ *   (clave = remitente/título de conversación, valor = epoch millis).
+ *   Base de la ventana "Repetir" individual por contacto/numero.
  */
 @Serializable
 data class AppTarget(
@@ -26,6 +30,7 @@ data class AppTarget(
     val repeatSeconds: Long = 0L,
     val replyMessage: String = DEFAULT_REPLY,
     val lastReplyTimestampMillis: Long = 0L,
+    val lastReplyBySender: Map<String, Long> = emptyMap(),
 ) {
     /** Validación de contrato: paquete no vacío, tiempos >= 0, mensaje 1..500. */
     fun isValid(): Boolean =

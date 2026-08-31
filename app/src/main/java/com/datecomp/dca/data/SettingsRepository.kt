@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import com.datecomp.dca.core.AppTarget
+import com.datecomp.dca.core.AutoReplyEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
@@ -118,12 +119,13 @@ class SettingsRepository(private val context: Context) {
         }
 
     /**
-     * Marca la hora del último envío. SOLO toca ese campo sobre el valor
-     * más reciente: es la escritura del listener y nunca debe pisar ediciones
-     * del usuario hechas mientras la respuesta estaba en curso.
+     * Registra una respuesta con persistencia atomic a nivel de campo sobre
+     * el valor más reciente en disco: actualiza el gap técnico de la app y
+     * la ventana individual del remitente (AutoReplyEngine.markReplied).
+     * Nunca pisa ediciones del usuario hechas durante la demora del cooldown.
      */
-    suspend fun markReplied(packageName: String, timestampMillis: Long) =
-        editTarget(packageName) { it.copy(lastReplyTimestampMillis = timestampMillis) }
+    suspend fun markReplied(packageName: String, sender: String, timestampMillis: Long) =
+        editTarget(packageName) { AutoReplyEngine.markReplied(it, sender, timestampMillis) }
 
     /** Elimina un target por packageName. */
     suspend fun delete(packageName: String) {
