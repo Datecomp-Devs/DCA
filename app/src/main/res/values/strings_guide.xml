@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="guide_intro">Bienvenido a DCA</string>
+    <string name="guide_title">¿Por qué necesita estos permisos?</string>
+    <string name="guide_close">Entendido</string>
+    <string name="guide_skip">Saltar</string>
+</resources>

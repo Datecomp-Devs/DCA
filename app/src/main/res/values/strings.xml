@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">DCA</string>
+    <string name="notification_listener_label">DCA — Auto respuesta</string>
+    <string name="replier_notification_channel">Envíos de DCA</string>
+    <string name="replier_notification_channel_desc">Notificación visible cuando DCA envía una respuesta automática.</string>
+    <string name="boot_receiver_toast">DCA iniciado tras el reinicio del dispositivo.</string>
+</resources>

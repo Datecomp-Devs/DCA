@@ -1,0 +1,24 @@
+# Gradle
+.gradle/
+build/
+app/build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Kotlin/Native y caches locales
+.kotlin/
+
+# Android SDK local del proyecto
+/android-sdk/
+
+# Otros
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+
+# SDK instalado local del proyecto (no versionar jamás)
+.android-sdk/
