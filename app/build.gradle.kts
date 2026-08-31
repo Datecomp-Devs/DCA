@@ -5,6 +5,19 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Firma de release: credenciales en keystore/keystore.properties (no versionado).
+// En CI (sin keystore) queda vacío y el release se genera sin firmar; la
+// publicación de Releases usa el APK pre-compilado firmado en /apk.
+val keystoreProps: Map<String, String> = buildMap {
+    val f = rootProject.file("keystore/keystore.properties")
+    if (f.exists()) {
+        f.readLines().forEach { line ->
+            val idx = line.indexOf('=')
+            if (idx > 0) put(line.substring(0, idx).trim(), line.substring(idx + 1).trim())
+        }
+    }
+}
+
 android {
     namespace = "com.datecomp.dca"
     compileSdk = 35
@@ -13,8 +26,22 @@ android {
         applicationId = "com.datecomp.dca"
         minSdk = 23
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
+
+        // Fallback a un nombre de APK determinista y estable.
+        setProperty("archivesBaseName", "DCA-v$versionName")
+    }
+
+    signingConfigs {
+        if (keystoreProps.isNotEmpty()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps["STORE_FILE"] ?: "")
+                storePassword = keystoreProps["STORE_PASSWORD"] ?: ""
+                keyAlias = keystoreProps["KEY_ALIAS"] ?: ""
+                keyPassword = keystoreProps["KEY_PASSWORD"] ?: ""
+            }
+        }
     }
 
     buildTypes {
@@ -25,6 +52,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (keystoreProps.isNotEmpty()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

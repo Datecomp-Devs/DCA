@@ -3,6 +3,10 @@
 build/
 app/build/
 
+# Keystore y secretos de firma (JAMAS versionar)
+keystore/
+keystore.properties
+
 # IDE
 .idea/
 *.iml
