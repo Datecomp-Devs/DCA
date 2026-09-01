@@ -292,9 +292,11 @@ private fun TargetRow(
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        Switch(checked = target.enabled, onCheckedChange = onToggle)
+        Switch(checked = target.enabled, onCheckedChange = onToggle, modifier = Modifier.padding(start = 4.dp))
         IconButtonCompat(
             icon = Icons.Default.Edit,
             description = "Editar ${target.displayName}",

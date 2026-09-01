@@ -14,6 +14,8 @@ flowchart TB
 
     subgraph CORE["core · lógica pura"]
         ENG[AutoReplyEngine<br/>decisión REPLY/SKIP]
+        BOT[ChatBot<br/>matching de preguntas]
+        KB[ChatBotKnowledge<br/>conocimiento FAQ]
         AT[AppTarget<br/>modelo + contrato]
     end
 
@@ -36,6 +38,9 @@ flowchart TB
     LISTENER -->|consulta target| REPO
     LISTENER -->|debe responder?| ENG
     ENG --> AT
+    LISTENER -->|texto cliente| BOT
+    BOT --> KB
+    BOT -->|respuesta generada| LISTENER
     LISTENER -->|mensaje| REPLIER
     REPLIER -->|quick reply| OS
     LISTENER -->|confirmación| OS
@@ -57,6 +62,7 @@ sequenceDiagram
     participant OS as Sistema Android
     participant L as NotificationListener
     participant E as AutoReplyEngine
+    participant B as ChatBot
     participant R as NotificationReplier
     participant D as DataStore
 
@@ -66,6 +72,13 @@ sequenceDiagram
     L->>E: shouldReply(target, now, key)
     alt REPLY
         E-->>L: REPLY
+        L->>L: awaitCooldown (demora configurada)
+        alt Chat Bot encendido
+            L->>B: respond(texto del cliente, conocimiento)
+            B-->>L: respuesta generada (FAQ / saludo / fallback / humano)
+        else Chat Bot apagado
+            L->>L: mensaje personalizado configurado
+        end
         L->>R: sendReply(vía RemoteInput)
         R->>OS: intent de respuesta rápida
         OS->>App: mensaje enviado

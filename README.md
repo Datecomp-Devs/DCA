@@ -24,9 +24,10 @@ DCA usa el permiso **Acceso a notificaciones** (NotificationListenerService) par
 ## Funciones
 
 - **Cualquier app instalada**: el buscador lista todas las apps del dispositivo (solo excluye DCA y apps sin interfaz). Nota: la respuesta automática solo funciona en apps cuyas notificaciones incluyan respuesta rápida (la mayoría de apps de mensajería).
-- **Mensaje por app**: personaliza el texto de auto-respuesta por aplicación (1–500 caracteres).
-- **Cooldown (demora)**: segundos que DCA espera desde que llega la notificación antes de enviar la respuesta (0 = inmediata, máx. 1 h).
-- **Repetir**: intervalo mínimo entre respuestas automáticas a la misma app — presets 30 min, 5 h, 1 día o valor manual en segundos (máx. 7 días). Aunque lleguen 50 mensajes, DCA responde como máximo una vez por intervalo.
+- **Chat Bot (Encendido/Apagado por app)**: interruptor "Activar Chat Bot" en la sección "Mensaje de auto-respuesta" del editor de cada app. Encendido, DCA atiende al cliente automáticamente usando las preguntas frecuentes de DateComp — el mismo sistema de respuesta del chat bot del widget web: normaliza el mensaje (minúsculas, sin acentos), puntúa cada categoría sumando la longitud de las keywords coincidentes (las específicas pesan más, con plural simple) y responde la más cercana. Prioridades: pedir un humano → FAQ → saludo → despedida → "no encontrada" con opciones sugeridas. **Bilingüe ES/EN**: detecta el idioma del mensaje y resuelve hasta 15 categorías por idioma (13 FAQs del web + "horario de atención" y "app DCA"). Coherente con mensajería: el traspaso humano promete atención por turno abierto en el mismo chat (sin horario fijo: se trabaja por demanda), el contacto no remite de nuevo a WhatsApp y las referencias a la web incluyen la URL completa (datecomp.com). Con el bot encendido, el resto de opciones del editor quedan bloqueadas salvo la demora (el bot responde de forma automática a cada mensaje).
+- **Mensaje por app**: personaliza el texto de auto-respuesta por aplicación (1–500 caracteres). Requerido solo con el Chat Bot apagado.
+- **Cooldown (demora)**: segundos que DCA espera desde que llega la notificación antes de enviar la respuesta (0 = inmediata, máx. 1 h). Funciona igual con el Chat Bot encendido o apagado.
+- **Repetir**: intervalo mínimo entre respuestas automáticas a la misma app — presets 30 min, 5 h, 1 día o valor manual en segundos (máx. 7 días). Aunque lleguen 50 mensajes, DCA responde como máximo una vez por intervalo. Bloqueado mientras el Chat Bot está encendido.
 - **Detección de duplicados**: la misma notificación re-posteada no dispara doble respuesta.
 - **Guía inicial**: explica cada permiso, por qué se pide, y estado concedido/requerido en tiempo real.
 - **Modo oscuro automático** siguiendo al sistema, manteniendo la paleta blanco/negro/grises.
@@ -38,7 +39,9 @@ DCA/
 ├─ app/src/main/java/com/datecomp/dca/
 │  ├─ core/                  # Lógica pura, testeable, sin Android
 │  │  ├─ AppTarget.kt        # Modelo de dominio + validación de contrato
-│  │  └─ AutoReplyEngine.kt  # Motor de decisión (cooldown, duplicados)
+│  │  ├─ AutoReplyEngine.kt  # Motor de decisión (cooldown, duplicados)
+│  │  ├─ ChatBot.kt          # Matching de preguntas (mismo sistema del bot web)
+│  │  └─ ChatBotKnowledge.kt # Conocimiento FAQ de DateComp (persistido en backend)
 │  ├─ data/                  # Persistencia (DataStore + JSON)
 │  │  └─ SettingsRepository.kt
 │  ├─ service/               # Efectos externos Android
@@ -50,7 +53,7 @@ DCA/
 │     ├─ AppViewModel.kt
 │     ├─ GuideScreen.kt, AppsScreen.kt, EditTargetScreen.kt
 │     └─ theme/ (Theme.kt, Type.kt)
-└─ app/src/test/.../AutoReplyEngineTest.kt  # 11 tests del motor de decisión
+└─ app/src/test/.../         # Motor de decisión, firma de notificaciones y ChatBot
 ```
 
 ## Requisitos para compilar
@@ -71,7 +74,7 @@ DCA/
 ## Estado del proyecto
 
 - ✅ Compila correctamente (BUILD SUCCESSFUL).
-- ✅ 11/11 pruebas unitarias del motor de decisión pasando.
-- ✅ APK debug generado (~16.8 MB).
+- ✅ 49/49 pruebas unitarias pasando (motor de decisión, firma de notificaciones y ChatBot bilingüe).
+- ✅ APK release firmado compilado (DCA-v1.0.4.apk en /apk).
 - ⏳ Sin validar en dispositivo/emulador real (no disponible en este entorno).
 - ⏳ Sin validar en Play Store (el usuario decide distribución).

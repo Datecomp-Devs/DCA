@@ -2,6 +2,8 @@ package com.datecomp.dca.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.alpha
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -23,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -38,11 +42,14 @@ import androidx.compose.ui.unit.dp
 import com.datecomp.dca.core.AppTarget
 
 /**
- * Editor por app: mensaje personalizado, demora antes de responder
- * (cooldown, en segundos) e intervalo de repetición (30 min, 5 h, 1 día,
- * manual). Validación inline derivada del modelo de dominio.
+ * Editor por app. Primera sección: "Mensaje de auto-respuesta", que incluye
+ * el interruptor "Activar Chat Bot". Con el chat bot encendido el bot
+ * responde automáticamente según el mensaje del cliente (mismo sistema de
+ * matching que el chat bot web de DateComp), por lo que el mensaje
+ * personalizado, "Repetir" y demás quedan bloqueados; solo la demora antes
+ * de responder (cooldown) sigue siendo editable.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EditTargetScreen(
     viewModel: AppViewModel,
@@ -55,6 +62,7 @@ fun EditTargetScreen(
     var message by remember(target?.packageName) { mutableStateOf(target?.replyMessage.orEmpty()) }
     var cooldown by remember(target?.packageName) { mutableStateOf(target?.cooldownSeconds ?: 0L) }
     var repeat by remember(target?.packageName) { mutableStateOf(target?.repeatSeconds ?: 0L) }
+    var chatBot by remember(target?.packageName) { mutableStateOf(target?.chatBotEnabled ?: false) }
 
     Scaffold(
         topBar = {
@@ -79,10 +87,13 @@ fun EditTargetScreen(
             return@Scaffold
         }
 
-        val messageValid = message.length in 1..AppTarget.MAX_REPLY_LENGTH
+        val chatBotValid = message.length <= AppTarget.MAX_REPLY_LENGTH
+        val messageValid = message.isNotEmpty() && message.length in 1..AppTarget.MAX_REPLY_LENGTH
         val cooldownValid = cooldown in AppTarget.MIN_COOLDOWN_SECONDS..AppTarget.MAX_COOLDOWN_SECONDS
         val repeatValid = repeat in AppTarget.MIN_REPEAT_SECONDS..AppTarget.MAX_REPEAT_SECONDS
-        val canSave = messageValid && cooldownValid && repeatValid
+        // Con el bot encendido el mensaje ya no es requerido (se genera).
+        val canSave = if (chatBot) chatBotValid && cooldownValid && repeatValid
+        else messageValid && cooldownValid && repeatValid
 
         Column(
             modifier = Modifier
@@ -91,20 +102,64 @@ fun EditTargetScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
         ) {
-            // ─── Mensaje ─────────────────────────────────────────────
+            // ─── Mensaje de auto-respuesta + Activar Chat Bot ────────
             Text(
                 text = "Mensaje de auto-respuesta",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "Activar Chat Bot",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Switch(
+                    checked = chatBot,
+                    onCheckedChange = { chatBot = it },
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = if (chatBot) {
+                    "Encendido: responde automáticamente a cada pregunta del cliente."
+                } else {
+                    "Apagado: se envía el mensaje personalizado de abajo."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            if (chatBot) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "El Chat Bot responde según el mensaje del cliente usando las preguntas frecuentes de DateComp. Si el cliente pide hablar con una persona, DCA le avisa y traspasa la conversación.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = message,
                 onValueChange = { message = it.take(AppTarget.MAX_REPLY_LENGTH) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .alpha(if (chatBot) 0.5f else 1f),
                 minLines = 3,
-                isError = message.isNotEmpty() && !messageValid,
+                isError = !chatBot && message.isNotEmpty() && !messageValid,
                 supportingText = { Text("${message.length}/${AppTarget.MAX_REPLY_LENGTH} caracteres") },
+                enabled = !chatBot,
+                label = if (chatBot) {
+                    { Text("Gestionado por el Chat Bot") }
+                } else {
+                    null
+                },
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -133,7 +188,11 @@ fun EditTargetScreen(
                 onValueChange = { cooldown = it.toLong() },
                 valueRange = 0f..60f,
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 OutlinedTextField(
                     value = cooldown.toString(),
                     onValueChange = { raw ->
@@ -145,16 +204,12 @@ fun EditTargetScreen(
                     modifier = Modifier.width(140.dp),
                     singleLine = true,
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Row {
-                    listOf(0L, 5L, 15L, 30L, 60L).forEach { preset ->
-                        FilterChip(
-                            selected = cooldown == preset,
-                            onClick = { cooldown = preset },
-                            label = { Text(if (preset == 0L) "Ya" else "${preset}s") },
-                            modifier = Modifier.padding(end = 6.dp),
-                        )
-                    }
+                listOf(0L, 5L, 15L, 30L, 60L).forEach { preset ->
+                    FilterChip(
+                        selected = cooldown == preset,
+                        onClick = { cooldown = preset },
+                        label = { Text(if (preset == 0L) "Ya" else "${preset}s") },
+                    )
                 }
             }
 
@@ -170,7 +225,11 @@ fun EditTargetScreen(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Tiempo mínimo entre respuestas automáticas a esta app. Ej.: 30 min responde como máximo una vez cada media hora, aunque lleguen más mensajes.",
+                text = if (chatBot) {
+                    "Bloqueado con el Chat Bot activado: responde a cada mensaje del cliente."
+                } else {
+                    "Tiempo mínimo entre respuestas automáticas a esta app. Ej.: 30 min responde como máximo una vez cada media hora, aunque lleguen más mensajes."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -178,6 +237,7 @@ fun EditTargetScreen(
             Text(
                 text = formatRepeat(repeat),
                 style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.alpha(if (chatBot) 0.5f else 1f),
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -191,28 +251,33 @@ fun EditTargetScreen(
                     FilterChip(
                         selected = repeat == seconds,
                         onClick = { repeat = seconds },
+                        enabled = !chatBot,
                         label = { Text(label) },
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
-                OutlinedTextField(
-                    value = repeat.toString(),
-                    onValueChange = { raw ->
-                        repeat = raw.filter { it.isDigit() }.toLongOrNull()
-                            ?.coerceIn(AppTarget.MIN_REPEAT_SECONDS, AppTarget.MAX_REPEAT_SECONDS)
-                            ?: 0L
-                    },
-                    label = { Text("Segundos exactos (avanzado)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-            }
+            OutlinedTextField(
+                value = repeat.toString(),
+                onValueChange = { raw ->
+                    repeat = raw.filter { it.isDigit() }.toLongOrNull()
+                        ?.coerceIn(AppTarget.MIN_REPEAT_SECONDS, AppTarget.MAX_REPEAT_SECONDS)
+                        ?: 0L
+                },
+                label = { Text("Segundos exactos (avanzado)") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .alpha(if (chatBot) 0.5f else 1f),
+                singleLine = true,
+                enabled = !chatBot,
+            )
 
             Spacer(modifier = Modifier.height(32.dp))
 
             Button(
                 onClick = {
+                    viewModel.updateChatBotEnabled(target.packageName, chatBot)
                     viewModel.updateReplyMessage(target.packageName, message)
                     viewModel.updateCooldown(target.packageName, cooldown)
                     viewModel.updateRepeat(target.packageName, repeat)
@@ -226,8 +291,11 @@ fun EditTargetScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Nota: si la app reenvía la misma notificación, DCA la descarta como duplicada. " +
-                    "La demora se cancela si la app se detiene.",
+                text = if (chatBot) {
+                    "Chat Bot encendido: responde automáticamente a las preguntas del cliente. La demora se aplica antes de cada respuesta."
+                } else {
+                    "Nota: si la app reenvía la misma notificación, DCA la descarta como duplicada. La demora se cancela si la app se detiene."
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

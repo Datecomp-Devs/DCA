@@ -166,6 +166,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.setRepeat(packageName, seconds) }
     }
 
+    /** Activa o desactiva el chat bot automático de una app. */
+    fun updateChatBotEnabled(packageName: String, enabled: Boolean) {
+        viewModelScope.launch { repository.setChatBotEnabled(packageName, enabled) }
+    }
+
     /** Elimina la app de la lista DCA. */
     fun removeTarget(packageName: String) {
         viewModelScope.launch { repository.delete(packageName) }

@@ -11,6 +11,8 @@ import androidx.core.app.NotificationCompat
 import com.datecomp.dca.R
 import com.datecomp.dca.core.AppTarget
 import com.datecomp.dca.core.AutoReplyEngine
+import com.datecomp.dca.core.ChatBot
+import com.datecomp.dca.core.ChatBotKnowledge
 import com.datecomp.dca.core.NotificationKeys
 import com.datecomp.dca.data.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +51,14 @@ class AutoReplyNotificationListener : NotificationListenerService() {
     private val targetCache = ConcurrentHashMap<String, AppTarget>()
     private val cacheLock = Any()
 
+    /**
+     * Conocimiento del chat bot, cacheado al vuelo. Se reemplaza la
+     * referencia completa (inmutable después de la publicación), por lo que
+     * en el hot path nunca se toca DataStore.
+     */
+    @Volatile
+    private var chatBotKnowledge: ChatBotKnowledge = ChatBotKnowledge()
+
     /** Un mutex por paquete: serializa la decisión+envío por app. */
     private val packageMutexes = ConcurrentHashMap<String, Mutex>()
 
@@ -68,6 +78,12 @@ class AutoReplyNotificationListener : NotificationListenerService() {
                     targetCache.clear()
                     targets.forEach { targetCache[it.packageName] = it }
                 }
+            }
+        }
+        // Conocimiento del chat bot en caliente (ediciones del backend).
+        scope.launch {
+            repository.chatBotKnowledgeFlow.collect { knowledge ->
+                chatBotKnowledge = knowledge
             }
         }
     }
@@ -93,10 +109,11 @@ class AutoReplyNotificationListener : NotificationListenerService() {
         if (title.isBlank()) return
 
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
+        if (text.isBlank()) return // sin cuerpo de mensaje no hay nada que responder
         // Firma por CONTENIDO (ver NotificationKeys): mensajes nuevos del mismo
         // remitente tienen firma distinta; re-posts idénticos, la misma.
         val key = NotificationKeys.contentKey(pkg, title, text)
-        if (key.isBlank()) return // sin cuerpo de mensaje no hay nada que responder
+        if (key.isBlank()) return
 
         scope.launch {
             // Serialización por app: los re-posts rápidos de la misma
@@ -121,10 +138,24 @@ class AutoReplyNotificationListener : NotificationListenerService() {
                     // Demora configurable antes de responder (cooldown).
                     AutoReplyEngine.awaitCooldown(current.cooldownSeconds)
 
+                    // Chat bot activado: el texto se genera a partir del
+                    // mensaje del cliente con el mismo sistema de matching
+                    // del chat bot web (keyword scoring). Si el cliente pide
+                    // un humano, se responde avisando el traspaso. Si está
+                    // apagado, se envía el mensaje estático configurado.
+                    val outgoingMessage = when {
+                        current.chatBotEnabled -> {
+                            val response = ChatBot.respond(text, chatBotKnowledge)
+                            ChatBot.renderText(response, chatBotKnowledge)
+                                .take(AppTarget.MAX_REPLY_LENGTH)
+                        }
+                        else -> current.replyMessage
+                    }
+
                     val sent = NotificationReplier.sendReply(
                         context = applicationContext,
                         sbn = sbn,
-                        message = current.replyMessage,
+                        message = outgoingMessage,
                     )
                     if (sent) {
                         lastSeenKeys[pkg] = key
@@ -133,7 +164,7 @@ class AutoReplyNotificationListener : NotificationListenerService() {
                         // remitente (titulo de conversacion = contacto/numero),
                         // sin pisar ediciones del usuario en curso.
                         repository.markReplied(pkg, title, System.currentTimeMillis())
-                        postConfirmationNotification(pkg, title, current.replyMessage)
+                        postConfirmationNotification(pkg, title, outgoingMessage)
                     }
                 }
             }

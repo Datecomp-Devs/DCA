@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import com.datecomp.dca.core.AppTarget
 import com.datecomp.dca.core.AutoReplyEngine
+import com.datecomp.dca.core.ChatBotKnowledge
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
@@ -29,6 +30,10 @@ class SettingsRepository(private val context: Context) {
         val TARGETS = androidx.datastore.preferences.core.stringPreferencesKey("app_targets")
         val ONBOARDING_DONE = androidx.datastore.preferences.core.booleanPreferencesKey("onboarding_done")
         val MIGRATED_V2 = androidx.datastore.preferences.core.booleanPreferencesKey("migrated_v2")
+
+        /** Conocimiento del chat bot (JSON completo de [ChatBotKnowledge]). */
+        val CHAT_BOT_KNOWLEDGE =
+            androidx.datastore.preferences.core.stringPreferencesKey("chat_bot_knowledge")
     }
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -118,6 +123,30 @@ class SettingsRepository(private val context: Context) {
             it.copy(repeatSeconds = seconds.coerceIn(AppTarget.MIN_REPEAT_SECONDS, AppTarget.MAX_REPEAT_SECONDS))
         }
 
+    /** Activa o desactiva el chat bot para una app, sin tocar lo demás. */
+    suspend fun setChatBotEnabled(packageName: String, enabled: Boolean) =
+        editTarget(packageName) { it.copy(chatBotEnabled = enabled) }
+
+    /** Conocimiento del chat bot: por defecto el del widget web de DateComp. */
+    val chatBotKnowledgeFlow: Flow<ChatBotKnowledge> = context.dataStore.data.map { prefs ->
+        val raw = prefs[Keys.CHAT_BOT_KNOWLEDGE]
+        if (raw.isNullOrBlank()) {
+            ChatBotKnowledge()
+        } else {
+            runCatching { json.decodeFromString<ChatBotKnowledge>(raw) }.getOrElse { ChatBotKnowledge() }
+        }
+    }
+
+    /**
+     * Reemplaza el conocimiento del chat bot (edición avanzada desde el
+     * backend de la app). Rechaza JSON mayor a 256 KB por seguridad.
+     */
+    suspend fun setChatBotKnowledge(knowledge: ChatBotKnowledge) {
+        val encoded = json.encodeToString(knowledge)
+        require(encoded.length <= MAX_KNOWLEDGE_CHARS) { "Conocimiento demasiado grande" }
+        context.dataStore.edit { prefs -> prefs[Keys.CHAT_BOT_KNOWLEDGE] = encoded }
+    }
+
     /**
      * Registra una respuesta con persistencia atomic a nivel de campo sobre
      * el valor más reciente en disco: actualiza el gap técnico de la app y
@@ -140,6 +169,11 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setOnboardingDone(done: Boolean) {
         context.dataStore.edit { prefs -> prefs[Keys.ONBOARDING_DONE] = done }
+    }
+
+    /** Tope del conocimiento persistido: 256 KB de JSON. */
+    private companion object {
+        const val MAX_KNOWLEDGE_CHARS: Int = 256 * 1024
     }
 
     /**
