@@ -102,6 +102,41 @@ object ChatBot {
         return best
     }
 
+    /**
+     * Compara el mejor nodo de cada idioma y devuelve el de mayor
+     * puntuación. Empate → el menú del idioma detectado del mensaje.
+     * Requiere que ambos menús tengan ids equivalentes (garantizado por
+     * los tests de paridad).
+     */
+    private fun pickBestNode(
+        query: String,
+        esBest: ChatBotNode?,
+        enBest: ChatBotNode?,
+        detectedLocale: ChatBotLocale,
+    ): ChatBotNode? = when {
+        esBest == null -> enBest
+        enBest == null -> esBest
+        else -> {
+            val esScore = scoreNode(query, esBest)
+            val enScore = scoreNode(query, enBest)
+            when {
+                enScore > esScore -> enBest
+                esScore > enScore -> esBest
+                detectedLocale == ChatBotLocale.EN -> enBest
+                else -> esBest
+            }
+        }
+    }
+
+    private fun scoreNode(query: String, node: ChatBotNode): Int {
+        var score = 0
+        for (kw in node.keywords) {
+            val nkw = normalize(kw)
+            if (hasKeyword(query, nkw)) score += nkw.length
+        }
+        return score
+    }
+
     // ─── Detección de idioma ─────────────────────────────────────────────
 
     /**
@@ -145,12 +180,13 @@ object ChatBot {
     private val ES_HUMAN = listOf(
         "hablar con una persona", "hablar con alguien", "persona", "agente",
         "asesor", "humano", "representante", "atencion al cliente",
-        "con una persona",
+        "con una persona", "necesito ayuda", "ayuda humana",
     ).map { normalize(it) }
 
     private val EN_HUMAN = listOf(
         "talk to a person", "talk to someone", "person", "agent",
         "human", "representative", "live person", "customer service",
+        "real person", "need help",
     ).map { normalize(it) }
 
     private val ES_GREETING = listOf(
@@ -205,14 +241,26 @@ object ChatBot {
         }
 
         // 2. FAQ por puntuación → respuesta + hasta 3 followups.
-        matchNode(query, texts.menu)?.let { node ->
-            val followups = texts.menu
+        // El matching se hace en AMBOS menús (ES y EN): los clientes de
+        // mensajería escriben en cualquier idioma o mezclado, y la
+        // detección de idioma puede quedarse sin señal en frases cortas.
+        // Gana el menú con mayor puntuación; la respuesta sale en el
+        // idioma de ese menú.
+        val esMenu = knowledge.textsFor(ChatBotLocale.ES).menu
+        val enMenu = knowledge.textsFor(ChatBotLocale.EN).menu
+        val esBest = matchNode(query, esMenu)
+        val enBest = matchNode(query, enMenu)
+        val best = pickBestNode(query, esBest, enBest, locale)
+        if (best != null) {
+            val bestLocale = if (enBest === best) ChatBotLocale.EN else ChatBotLocale.ES
+            val bestTexts = knowledge.textsFor(bestLocale)
+            val followups = bestTexts.menu
                 .asSequence()
-                .filter { it.id != node.id }
+                .filter { it.id != best.id }
                 .map { it.label }
                 .take(ChatBotKnowledge.FALLBACK_OPTIONS)
                 .toList()
-            return Response.Faq(node, followups, locale)
+            return Response.Faq(best, followups, bestLocale)
         }
 
         // 3. Saludo / despedida.

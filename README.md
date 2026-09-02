@@ -74,7 +74,7 @@ DCA/
 ## Estado del proyecto
 
 - ✅ Compila correctamente (BUILD SUCCESSFUL).
-- ✅ 49/49 pruebas unitarias pasando (motor de decisión, firma de notificaciones y ChatBot bilingüe).
-- ✅ APK release firmado compilado (DCA-v1.0.4.apk en /apk).
+- ✅ 51/51 pruebas unitarias pasando (motor de decisión, firma de notificaciones, ChatBot bilingüe y cobertura de preguntas frecuentes).
+- ✅ APK release firmado compilado (DCA-v1.0.5.apk en /apk).
 - ⏳ Sin validar en dispositivo/emulador real (no disponible en este entorno).
 - ⏳ Sin validar en Play Store (el usuario decide distribución).

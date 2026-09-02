@@ -23,7 +23,10 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,6 +56,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.datecomp.dca.core.AppTarget
 
 /**
@@ -68,6 +73,12 @@ fun AppsScreen(
 ) {
     val state by viewModel.appsState.collectAsState()
     val searching = state.query.isNotBlank()
+
+    // Refresca el estado del permiso al volver de Ajustes (ON_RESUME):
+    // si el usuario activó el acceso, la tarjeta desaparece al instante.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshPermissionState()
+    }
 
     Scaffold(
         topBar = {
@@ -103,12 +114,30 @@ fun AppsScreen(
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
                 ) {
-                    Text(
-                        text = "El acceso a notificaciones está desactivado. DCA no puede responder hasta que lo actives en Ajustes.",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(12.dp),
-                    )
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "El acceso a notificaciones está desactivado. DCA no puede responder hasta que lo actives en Ajustes.",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = { viewModel.openNotificationAccessSettings() },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White,
+                                contentColor = Color.Black,
+                            ),
+                        ) {
+                            Icon(
+                                Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Activar acceso a notificaciones")
+                        }
+                    }
                 }
             }
 
