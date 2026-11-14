@@ -37,23 +37,38 @@ DCA usa el permiso **Acceso a notificaciones** (NotificationListenerService) par
 ```
 DCA/
 ├─ app/src/main/java/com/datecomp/dca/
-│  ├─ core/                  # Lógica pura, testeable, sin Android
-│  │  ├─ AppTarget.kt        # Modelo de dominio + validación de contrato
-│  │  ├─ AutoReplyEngine.kt  # Motor de decisión (cooldown, duplicados)
-│  │  ├─ ChatBot.kt          # Matching de preguntas (mismo sistema del bot web)
-│  │  └─ ChatBotKnowledge.kt # Conocimiento FAQ de DateComp (persistido en backend)
-│  ├─ data/                  # Persistencia (DataStore + JSON)
-│  │  └─ SettingsRepository.kt
-│  ├─ service/               # Efectos externos Android
-│  │  ├─ AutoReplyNotificationListener.kt   # Entrada: notificaciones
-│  │  ├─ NotificationReplier.kt             # Salida: envío RemoteInput
+│  ├─ targets/               # Apps objetivo: contrato, persistencia, lista y editor
+│  │  ├─ AppTarget.kt        # Modelo de dominio + validación + estado de repetición
+│  │  ├─ TargetsStore.kt     # DataStore + JSON (edición atómica)
+│  │  ├─ InstalledApps.kt    # PackageManager: apps con launcher
+│  │  ├─ TargetsViewModel.kt
+│  │  ├─ AppsScreen.kt
+│  │  └─ EditTargetScreen.kt
+│  ├─ autoreply/             # Decisión y envío de auto-respuestas
+│  │  ├─ AutoReplyEngine.kt  # Motor puro (cooldown, repetición, duplicados)
+│  │  ├─ NotificationKeys.kt # Firma de contenido
+│  │  ├─ AutoReplyNotificationListener.kt
+│  │  ├─ NotificationReplier.kt # Salida RemoteInput
+│  │  ├─ ReplyNotifier.kt       # Confirmación visible
 │  │  └─ BootCompletedReceiver.kt
-│  └─ ui/                    # Compose + ViewModel
-│     ├─ MainActivity.kt, DcaNavHost.kt
-│     ├─ AppViewModel.kt
-│     ├─ GuideScreen.kt, AppsScreen.kt, EditTargetScreen.kt
-│     └─ theme/ (Theme.kt, Type.kt)
-└─ app/src/test/.../         # Motor de decisión, firma de notificaciones y ChatBot
+│  ├─ chatbot/               # Chat bot FAQ bilingüe
+│  │  ├─ ChatBot.kt
+│  │  ├─ ChatBotKnowledge.kt
+│  │  └─ ChatBotStore.kt
+│  ├─ onboarding/            # Guía inicial de permisos
+│  │  ├─ GuideScreen.kt
+│  │  ├─ OnboardingStore.kt
+│  │  └─ OnboardingViewModel.kt
+│  ├─ permissions/           # Estado y solicitud de permisos del sistema
+│  │  ├─ SystemPermissions.kt
+│  │  └─ PermissionsViewModel.kt
+│  ├─ shell/                 # Arranque, navegación y tema
+│  │  ├─ DcaApp.kt
+│  │  ├─ MainActivity.kt
+│  │  ├─ DcaNavHost.kt
+│  │  └─ theme/ (Theme.kt, Type.kt)
+│  └─ LocalDataStore.kt      # Instancia única de DataStore
+└─ app/src/test/.../         # Tests por slice: targets, autoreply y chatbot
 ```
 
 ## Requisitos para compilar
@@ -74,7 +89,7 @@ DCA/
 ## Estado del proyecto
 
 - ✅ Compila correctamente (BUILD SUCCESSFUL).
-- ✅ 51/51 pruebas unitarias pasando (motor de decisión, firma de notificaciones, ChatBot bilingüe y cobertura de preguntas frecuentes).
+- ✅ 55/55 pruebas unitarias pasando (motor de decisión, firma de notificaciones, contrato de app objetivo, ChatBot bilingüe y cobertura de preguntas frecuentes).
 - ✅ APK release firmado compilado (DCA-v1.0.5.apk en /apk).
 - ⏳ Sin validar en dispositivo/emulador real (no disponible en este entorno).
 - ⏳ Sin validar en Play Store (el usuario decide distribución).

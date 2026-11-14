@@ -2,56 +2,20 @@
 
 ## Arquitectura (VSA)
 
-```mermaid
-flowchart TB
-    subgraph UI["ui · Compose"]
-        GS[GuideScreen]
-        AS[AppsScreen]
-        ES[EditTargetScreen]
-        VM[AppViewModel]
-        NAV[DcaNavHost]
-    end
+El código se organiza por capacidad vertical. Cada slice contiene su contrato,
+su lógica pura, sus puntos de entrada y sus efectos externos; los tests viven
+en el mismo paquete del slice bajo `app/src/test/`.
 
-    subgraph CORE["core · lógica pura"]
-        ENG[AutoReplyEngine<br/>decisión REPLY/SKIP]
-        BOT[ChatBot<br/>matching de preguntas]
-        KB[ChatBotKnowledge<br/>conocimiento FAQ]
-        AT[AppTarget<br/>modelo + contrato]
-    end
+## MAPA DE SLICES
 
-    subgraph DATA["data · persistencia"]
-        REPO[SettingsRepository<br/>DataStore + JSON]
-    end
-
-    subgraph SERVICE["service · IO Android"]
-        LISTENER[NotificationListener<br/>entrada de eventos]
-        REPLIER[NotificationReplier<br/>envío RemoteInput]
-        BOOT[BootCompletedReceiver]
-    end
-
-    subgraph SYS["Sistema Android"]
-        OS[(Notificaciones<br/>de apps externas)]
-        SET[(Ajustes del<br/>sistema)]
-    end
-
-    OS -->|onNotificationPosted| LISTENER
-    LISTENER -->|consulta target| REPO
-    LISTENER -->|debe responder?| ENG
-    ENG --> AT
-    LISTENER -->|texto cliente| BOT
-    BOT --> KB
-    BOT -->|respuesta generada| LISTENER
-    LISTENER -->|mensaje| REPLIER
-    REPLIER -->|quick reply| OS
-    LISTENER -->|confirmación| OS
-    BOOT -.->|mantener activo| LISTENER
-    SET -.->|concede permiso| LISTENER
-
-    AS --> VM
-    ES --> VM
-    GS --> VM
-    VM --> REPO
-    NAV --> AS
+```
+app/src/main/java/com/datecomp/dca/targets/        # Apps objetivo: contrato, lista, editor y persistencia | UI (lista/editor) | DataStore, PackageManager | deps: permissions
+app/src/main/java/com/datecomp/dca/chatbot/        # Chat bot FAQ bilingüe y su conocimiento | mensaje del cliente, edición de conocimiento | DataStore | deps: none
+app/src/main/java/com/datecomp/dca/autoreply/      # Decisión y envío de auto-respuestas | NotificationListenerService, BOOT_COMPLETED | DataStore, RemoteInput, notificaciones | deps: targets, chatbot
+app/src/main/java/com/datecomp/dca/onboarding/     # Guía inicial y finalización | UI | DataStore | deps: permissions
+app/src/main/java/com/datecomp/dca/permissions/    # Estado y solicitud de permisos del sistema | UI | Settings.Secure, PowerManager, rebind | deps: none
+app/src/main/java/com/datecomp/dca/shell/          # Arranque, navegación y tema | MainActivity | ninguna | deps: targets, onboarding, permissions
+app/src/main/java/com/datecomp/dca/LocalDataStore.kt # Instancia única de DataStore del proceso | — | DataStore | deps: none
 ```
 
 ## Flujo de auto-respuesta
@@ -60,11 +24,11 @@ flowchart TB
 sequenceDiagram
     participant App as App de mensajería
     participant OS as Sistema Android
-    participant L as NotificationListener
+    participant L as AutoReplyListener
     participant E as AutoReplyEngine
     participant B as ChatBot
     participant R as NotificationReplier
-    participant D as DataStore
+    participant D as TargetsStore
 
     App->>OS: mensaje nuevo (notificación)
     OS->>L: onNotificationPosted

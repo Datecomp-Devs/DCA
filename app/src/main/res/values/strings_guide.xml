@@ -2,6 +2,24 @@
 <resources>
     <string name="guide_intro">Bienvenido a DCA</string>
     <string name="guide_title">¿Por qué necesita estos permisos?</string>
-    <string name="guide_close">Entendido</string>
     <string name="guide_skip">Saltar</string>
+
+    <string name="guide_permission_notifications_title">Acceso a notificaciones</string>
+    <string name="guide_permission_notifications_reason">DCA necesita leer las notificaciones entrantes de tus apps de mensajería para detectar cuándo alguien te escribe. Nunca accede al contenido más allá de lo necesario para responder, y nada sale de tu dispositivo.</string>
+
+    <string name="guide_permission_dca_notifications_title">Notificaciones de DCA</string>
+    <string name="guide_permission_dca_notifications_reason">Se usa para mostrarte una confirmación discreta cada vez que DCA envía una respuesta automática, así siempre tienes control y trazabilidad.</string>
+
+    <string name="guide_permission_boot_title">Arranque automático</string>
+    <string name="guide_permission_boot_reason">Tras reiniciar el teléfono, DCA se reconecta automáticamente al sistema de notificaciones para no dejar de responder. No consume batería extra: solo reacciona cuando llega una notificación.</string>
+
+    <string name="guide_permission_battery_title">Optimización de batería</string>
+    <string name="guide_permission_battery_reason">Algunos teléfonos cierran apps en segundo plano para ahorrar batería. Eximir a DCA evita que el sistema la apague y que dejes de recibir respuestas. DCA sin embargo consume muy poca batería: solo reacciona a notificaciones y no tiene procesos en segundo plano.</string>
+
+    <string name="guide_status_ready">✓ Listo</string>
+    <string name="guide_status_required">Requerido</string>
+    <string name="guide_button_permission_granted">Permiso concedido ✓</string>
+    <string name="guide_button_grant_access">Conceder acceso a notificaciones</string>
+    <string name="guide_button_battery_exempt">Batería exenta ✓</string>
+    <string name="guide_button_exempt_battery">Eximir de optimización de batería</string>
 </resources>

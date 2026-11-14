@@ -3,9 +3,9 @@
 build/
 app/build/
 
-# Keystore de firma: versionado a petición del propietario (repo privado).
-# ADVERTENCIA: cualquier miembro de la org puede firmar builds como DCA.
-# keystore/ y keystore.properties se versionan explícitamente.
+# Credenciales de firma: nunca versionar. Mantener el keystore y sus
+# contraseñas solo en el equipo/gestor de secretos local.
+/keystore/
 
 # IDE
 .idea/
